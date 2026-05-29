@@ -1,5 +1,5 @@
 # Use the official, fully-built Sprout Track image as the base
-FROM oakandsprout/sprout-track:latest
+FROM sprouttrack/sprout-track:latest
 
 # Switch to root temporarily to set up our secure environment
 USER root
