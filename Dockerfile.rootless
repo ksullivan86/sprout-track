@@ -1,5 +1,5 @@
 # Use the official, fully-built Sprout Track image as the base
-FROM sprouttrack/sprout-track:latest
+FROM oakandsprout/sprout-track:latest
 
 # Switch to root temporarily to set up our secure environment
 USER root
@@ -16,19 +16,18 @@ RUN sed -i 's/.*\/etc\/TZ.*/# &/' /usr/local/bin/docker-startup.sh && \
     sed -i 's/^ *crond.*/# &/' /usr/local/bin/docker-startup.sh
 
 # ==============================================================================
-# 2. CREATE SECURE USER & SET PERMISSIONS
+# 2. SET PERMISSIONS (Using the Built-in UID 1000 User)
 # ==============================================================================
-# Create a specific non-root user and group (UID 1000)
-# Grant that user ownership over the application directory and the DB folder
+# The base image already reserves UID/GID 1000 for a user named 'node'.
+# We simply ensure the /db directory exists and give the 'node' user ownership
 # so Prisma can compile schemas and write environment variables autonomously.
-RUN addgroup -g 1000 sprout && \
-    adduser -D -u 1000 -G sprout sprout && \
-    chown -R sprout:sprout /app /db /usr/local/bin/docker-startup.sh
+RUN mkdir -p /db && \
+    chown -R node:node /app /db /usr/local/bin/docker-startup.sh
 
 # ==============================================================================
 # 3. DROP PRIVILEGES
 # ==============================================================================
-# Switch back to the non-root user for all execution
-USER sprout
+# Switch back to the non-root user (UID 1000) for all execution
+USER node
 
 # The ENTRYPOINT and CMD are automatically inherited from the base image
