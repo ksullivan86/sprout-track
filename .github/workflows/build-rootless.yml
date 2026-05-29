@@ -34,5 +34,4 @@ jobs:
           context: .
           file: ./Dockerfile.rootless
           push: true
-          # Tags the output as ghcr.io/oak-and-sprout/sprout-track:rootless
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rootless

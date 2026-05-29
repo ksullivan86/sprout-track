@@ -1,29 +1,37 @@
-# Use the official, fully-built Sprout Track image as the base
+# Use the correct upstream image
 FROM sprouttrack/sprout-track:latest
 
-# Switch to root temporarily to set up our secure environment
 USER root
 
 # ==============================================================================
-# 1. PATCH THE STARTUP SCRIPT (Fixing the Syntax Error)
+# 1. PATCH THE STARTUP SCRIPT (Safe Syntax Modifications)
 # ==============================================================================
-# We replace the root-only timezone and crond commands with the shell command 'true'. 
-# This preserves the bash syntax (avoiding empty 'if' blocks) while safely bypassing 
-# operations that User 1000 does not have permission to execute.
-RUN sed -i 's/.*\/etc\/TZ.*/    true/' /usr/local/bin/docker-startup.sh && \
-    sed -i 's/.*\/etc\/localtime.*/    true/' /usr/local/bin/docker-startup.sh && \
-    sed -i 's/^ *crond.*/    true/' /usr/local/bin/docker-startup.sh
+# Instead of deleting lines and breaking bash syntax, we safely redirect the 
+# root-only file modifications to /tmp, and replace 'crond' with 'true'.
+RUN sed -i 's/\/etc\/TZ/\/tmp\/TZ/g' /usr/local/bin/docker-startup.sh && \
+    sed -i 's/\/etc\/localtime/\/tmp\/localtime/g' /usr/local/bin/docker-startup.sh && \
+    sed -i 's/\bcrond\b/true/g' /usr/local/bin/docker-startup.sh
 
 # ==============================================================================
-# 2. SET PERMISSIONS (Using the Built-in UID 1000 User)
+# 2. THE KUBERNETES ENV WRAPPER
+# ==============================================================================
+# Prisma strictly requires variables to be in a physical .env file.
+# This wrapper dumps the Kubernetes process environment into the exact file
+# Sprout Track reads from before handing off to the main startup script.
+RUN echo '#!/bin/sh' > /usr/local/bin/k8s-wrapper.sh && \
+    echo 'mkdir -p /app/env' >> /usr/local/bin/k8s-wrapper.sh && \
+    echo 'env > /app/env/.env' >> /usr/local/bin/k8s-wrapper.sh && \
+    echo 'env > /app/.env' >> /usr/local/bin/k8s-wrapper.sh && \
+    echo 'exec /usr/local/bin/docker-startup.sh "$@"' >> /usr/local/bin/k8s-wrapper.sh && \
+    chmod +x /usr/local/bin/k8s-wrapper.sh
+
+# ==============================================================================
+# 3. SET PERMISSIONS & DROP PRIVILEGES
 # ==============================================================================
 RUN mkdir -p /db && \
-    chown -R node:node /app /db /usr/local/bin/docker-startup.sh
+    chown -R node:node /app /db /usr/local/bin/docker-startup.sh /usr/local/bin/k8s-wrapper.sh
 
-# ==============================================================================
-# 3. DROP PRIVILEGES
-# ==============================================================================
-# Switch back to the non-root user (UID 1000) for all execution
+# Execute securely as the built-in UID 1000
 USER node
 
-# The ENTRYPOINT and CMD are automatically inherited from the base image
+ENTRYPOINT ["/usr/local/bin/k8s-wrapper.sh"]
