@@ -1,0 +1,34 @@
+# Use the official, fully-built Sprout Track image as the base
+FROM sprouttrack/sprout-track:latest
+
+# Switch to root temporarily to set up our secure environment
+USER root
+
+# ==============================================================================
+# 1. PATCH THE STARTUP SCRIPT (Dynamic Sed Replacement)
+# ==============================================================================
+# The default startup script tries to modify system timezone files and start 
+# an internal cron daemon. Both of these require root privileges. 
+# We use 'sed' to dynamically comment out these specific commands so the script 
+# succeeds when run as a standard rootless user.
+RUN sed -i 's/.*\/etc\/TZ.*/# &/' /usr/local/bin/docker-startup.sh && \
+    sed -i 's/.*\/etc\/localtime.*/# &/' /usr/local/bin/docker-startup.sh && \
+    sed -i 's/^ *crond.*/# &/' /usr/local/bin/docker-startup.sh
+
+# ==============================================================================
+# 2. CREATE SECURE USER & SET PERMISSIONS
+# ==============================================================================
+# Create a specific non-root user and group (UID 1000)
+# Grant that user ownership over the application directory and the DB folder
+# so Prisma can compile schemas and write environment variables autonomously.
+RUN addgroup -g 1000 sprout && \
+    adduser -D -u 1000 -G sprout sprout && \
+    chown -R sprout:sprout /app /db /usr/local/bin/docker-startup.sh
+
+# ==============================================================================
+# 3. DROP PRIVILEGES
+# ==============================================================================
+# Switch back to the non-root user for all execution
+USER sprout
+
+# The ENTRYPOINT and CMD are automatically inherited from the base image
