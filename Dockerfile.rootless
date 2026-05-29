@@ -5,22 +5,18 @@ FROM sprouttrack/sprout-track:latest
 USER root
 
 # ==============================================================================
-# 1. PATCH THE STARTUP SCRIPT (Dynamic Sed Replacement)
+# 1. PATCH THE STARTUP SCRIPT (Fixing the Syntax Error)
 # ==============================================================================
-# The default startup script tries to modify system timezone files and start 
-# an internal cron daemon. Both of these require root privileges. 
-# We use 'sed' to dynamically comment out these specific commands so the script 
-# succeeds when run as a standard rootless user.
-RUN sed -i 's/.*\/etc\/TZ.*/# &/' /usr/local/bin/docker-startup.sh && \
-    sed -i 's/.*\/etc\/localtime.*/# &/' /usr/local/bin/docker-startup.sh && \
-    sed -i 's/^ *crond.*/# &/' /usr/local/bin/docker-startup.sh
+# We replace the root-only timezone and crond commands with the shell command 'true'. 
+# This preserves the bash syntax (avoiding empty 'if' blocks) while safely bypassing 
+# operations that User 1000 does not have permission to execute.
+RUN sed -i 's/.*\/etc\/TZ.*/    true/' /usr/local/bin/docker-startup.sh && \
+    sed -i 's/.*\/etc\/localtime.*/    true/' /usr/local/bin/docker-startup.sh && \
+    sed -i 's/^ *crond.*/    true/' /usr/local/bin/docker-startup.sh
 
 # ==============================================================================
 # 2. SET PERMISSIONS (Using the Built-in UID 1000 User)
 # ==============================================================================
-# The base image already reserves UID/GID 1000 for a user named 'node'.
-# We simply ensure the /db directory exists and give the 'node' user ownership
-# so Prisma can compile schemas and write environment variables autonomously.
 RUN mkdir -p /db && \
     chown -R node:node /app /db /usr/local/bin/docker-startup.sh
 

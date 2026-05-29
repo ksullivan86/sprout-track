@@ -8,8 +8,7 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   REGISTRY: ghcr.io
-  # Appends "-rootless" to the image name so you don't overwrite standard builds
-  IMAGE_NAME: ${{ github.repository }}-rootless
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -29,21 +28,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          # Specifically targets our new rootless overlay file
           file: ./Dockerfile.rootless
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # Tags the output as ghcr.io/oak-and-sprout/sprout-track:rootless
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rootless
